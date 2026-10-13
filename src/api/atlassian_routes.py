@@ -30,6 +30,7 @@ from src.services.global_config_service import get_global_config_service
 
 from src.api.dependencies import get_current_user
 from src.api.oauth_redirect import derive_redirect_uri
+from src.api.oauth_caller import binds_oauth_caller
 from src.middleware.permissions import RequirePermission
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ class CallbackRequest(BaseModel):
 
 
 # Dependency to get Atlassian service
+@binds_oauth_caller
 async def get_atlassian_service(
     request: Request
 ) -> AtlassianService:

@@ -26,6 +26,7 @@ from src.schemas.response_models import (
 
 from src.api.dependencies import get_current_user
 from src.api.oauth_redirect import derive_redirect_uri
+from src.api.oauth_caller import binds_oauth_caller
 from src.middleware.permissions import RequirePermission
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ class CallbackRequest(BaseModel):
     state: str = Field(..., description="State parameter from OAuth")
 
 # Dependency to get Asana service
+@binds_oauth_caller
 async def get_asana_service(
     request: Request
 ) -> AsanaService:

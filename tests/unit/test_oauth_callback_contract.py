@@ -24,6 +24,7 @@ from src.services.paypal_service import PayPalService
 from src.services.supabase_service import SupabaseService
 
 AGENT_ID = "0b6f7c1e-3f55-4a51-9a49-7d0d0c2b4a10"
+CALLER = {"user": "user-1", "context": "account-1"}
 FORGED_TARGET = "https://forged.invalid/token"
 COMMON = {
     "redirect_uri": "https://app.example/callback",
@@ -32,19 +33,26 @@ COMMON = {
 }
 CREDS = {"client_id": "cid", "client_secret": "csecret"}
 
+
+def _with_caller(service, caller=None):
+    # What binds_oauth_caller does on the route dependency.
+    service.oauth_caller = caller or CALLER
+    return service
+
+
 SERVICES = {
-    "github": lambda: GitHubService(**CREDS, **COMMON),
-    "hubspot": lambda: HubSpotService(**CREDS, **COMMON),
-    "notion": lambda: NotionService(**COMMON, **CREDS),
-    "asana": lambda: AsanaService(**COMMON, **CREDS),
-    "monday": lambda: MondayService(**COMMON, **CREDS),
-    "atlassian": lambda: AtlassianService(**COMMON, **CREDS),
-    "linear": lambda: LinearService(**COMMON, **CREDS),
-    "canva": lambda: CanvaService(**COMMON, **CREDS),
-    "supabase": lambda: SupabaseService(**COMMON),
-    "paypal": lambda: PayPalService(**COMMON, **CREDS),
-    "google_sheets": lambda: GoogleSheetsService(**CREDS, **COMMON),
-    "google_calendar": lambda: GoogleCalendarService(**CREDS, **COMMON),
+    "github": lambda: _with_caller(GitHubService(**CREDS, **COMMON)),
+    "hubspot": lambda: _with_caller(HubSpotService(**CREDS, **COMMON)),
+    "notion": lambda: _with_caller(NotionService(**COMMON, **CREDS)),
+    "asana": lambda: _with_caller(AsanaService(**COMMON, **CREDS)),
+    "monday": lambda: _with_caller(MondayService(**COMMON, **CREDS)),
+    "atlassian": lambda: _with_caller(AtlassianService(**COMMON, **CREDS)),
+    "linear": lambda: _with_caller(LinearService(**COMMON, **CREDS)),
+    "canva": lambda: _with_caller(CanvaService(**COMMON, **CREDS)),
+    "supabase": lambda: _with_caller(SupabaseService(**COMMON)),
+    "paypal": lambda: _with_caller(PayPalService(**COMMON, **CREDS)),
+    "google_sheets": lambda: _with_caller(GoogleSheetsService(**CREDS, **COMMON)),
+    "google_calendar": lambda: _with_caller(GoogleCalendarService(**CREDS, **COMMON)),
 }
 
 
@@ -153,7 +161,7 @@ async def test_an_unsigned_state_is_refused_before_any_request(
 async def test_a_state_for_another_agent_is_refused_before_any_request(
     provider, recording_http
 ):
-    result = await _complete(SERVICES[provider](), issue_state("another-agent"))
+    result = await _complete(SERVICES[provider](), issue_state("another-agent", CALLER))
 
     assert result["success"] is False
     assert recording_http.calls == []
@@ -209,7 +217,7 @@ def _base_service():
     service._authorization_server_metadata = {
         "token_endpoint": "https://auth.provider.example/token"
     }
-    return service
+    return _with_caller(service)
 
 
 @pytest.mark.asyncio
@@ -221,7 +229,7 @@ async def test_the_token_exchange_error_is_not_reflected(recording_http):
     result = await _base_service().complete_authorization(
         agent_id=AGENT_ID,
         code="the-code",
-        state=issue_state(AGENT_ID),
+        state=issue_state(AGENT_ID, CALLER),
         code_verifier="v",
     )
 
@@ -244,7 +252,7 @@ async def test_the_mcp_endpoint_stored_is_the_services_own(recording_http, monke
     result = await service.complete_authorization(
         agent_id=AGENT_ID,
         code="the-code",
-        state=issue_state(AGENT_ID),
+        state=issue_state(AGENT_ID, CALLER),
         code_verifier="v",
     )
 
@@ -265,7 +273,7 @@ async def test_an_mcp_url_inside_a_signed_state_is_still_ignored(
         "nonce": "n",
         "mcp_url": FORGED_TARGET,
     }
-    payload["sig"] = oauth_state._signature(payload)
+    payload["sig"] = oauth_state._signature(payload, CALLER)
     state = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     recording_http.responder = staticmethod(
         lambda method, url: _Response(200, {"access_token": "tok"})
@@ -297,7 +305,7 @@ async def test_paypal_ignores_an_mcp_url_inside_a_signed_state(
         "nonce": "n",
         "mcp_url": FORGED_TARGET,
     }
-    payload["sig"] = oauth_state._signature(payload)
+    payload["sig"] = oauth_state._signature(payload, CALLER)
     state = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     recording_http.responder = staticmethod(
         lambda method, url: _Response(200, {"access_token": "tok"})
@@ -317,3 +325,37 @@ async def test_paypal_ignores_an_mcp_url_inside_a_signed_state(
     assert result["success"] is True, result
     assert stored["mcp_url"] == service.mcp_url
     assert all(FORGED_TARGET not in url for _, url, _ in recording_http.calls)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", sorted(SERVICES))
+@pytest.mark.parametrize(
+    "completer",
+    [
+        {"user": "user-2", "context": "account-1"},
+        {"user": "user-1", "context": "account-2"},
+    ],
+)
+async def test_a_flow_started_by_someone_else_is_refused_before_any_request(
+    provider, completer, recording_http
+):
+    state = issue_state(AGENT_ID, CALLER)
+
+    result = await _complete(_with_caller(SERVICES[provider](), completer), state)
+
+    assert result["success"] is False
+    assert recording_http.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", sorted(SERVICES))
+async def test_a_service_without_a_bound_caller_refuses_to_complete(
+    provider, recording_http
+):
+    service = SERVICES[provider]()
+    service.oauth_caller = None
+
+    result = await _complete(service, issue_state(AGENT_ID, CALLER))
+
+    assert result["success"] is False
+    assert recording_http.calls == []

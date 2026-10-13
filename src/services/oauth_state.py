@@ -3,8 +3,10 @@ OAuth `state` for the agent integrations.
 
 The state travels through the provider and comes back on the callback, so it is
 signed: a callback is only accepted for a state this server issued, for that
-agent, recently. It carries no URL; the endpoints of the flow are resolved on
-the server. `agent_id` stays at the top level because the frontend callback page
+agent, to the same user and account that started the flow, recently. The caller
+is bound through the signature only, so no user or account id travels in the
+state. It carries no URL either; the endpoints of the flow are resolved on the
+server. `agent_id` stays at the top level because the frontend callback page
 reads it from the state.
 """
 
@@ -15,7 +17,7 @@ import json
 import os
 import secrets
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 STATE_TTL_SECONDS = 15 * 60
 # Allowance for clock drift between workers, not a validity window.
@@ -36,23 +38,35 @@ def _signing_key() -> bytes:
     return hmac.new(secret.encode(), _KEY_LABEL, hashlib.sha256).digest()
 
 
-def _signature(payload: Dict[str, Any]) -> str:
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+def _caller_key(caller: Optional[Mapping[str, Any]]) -> list:
+    # No caller is a wiring bug, not an anonymous flow: refuse to sign or accept.
+    user = str((caller or {}).get("user") or "")
+    if not user:
+        raise InvalidOAuthState("no caller identity")
+    return [user, str((caller or {}).get("context") or "")]
+
+
+def _signature(payload: Dict[str, Any], caller: Optional[Mapping[str, Any]]) -> str:
+    signed = {"payload": payload, "caller": _caller_key(caller)}
+    canonical = json.dumps(signed, sort_keys=True, separators=(",", ":")).encode()
     return hmac.new(_signing_key(), canonical, hashlib.sha256).hexdigest()
 
 
-def issue_state(agent_id: str) -> str:
+def issue_state(agent_id: str, caller: Optional[Mapping[str, Any]]) -> str:
+    """`caller` is {"user": ..., "context": ...} of who starts the flow."""
     payload = {
         "agent_id": str(agent_id),
         "issued_at": int(time.time()),
         "nonce": secrets.token_urlsafe(16),
     }
-    payload["sig"] = _signature(payload)
+    payload["sig"] = _signature(payload, caller)
     return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
 
 
-def verify_state(state: Optional[str], agent_id: str) -> Dict[str, Any]:
-    """Returns the payload of a state this server issued for `agent_id`, or raises."""
+def verify_state(
+    state: Optional[str], agent_id: str, caller: Optional[Mapping[str, Any]]
+) -> Dict[str, Any]:
+    """Returns the payload of a state this server issued for `agent_id` to `caller`, or raises."""
     try:
         padded = (state or "") + "=" * (-len(state or "") % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded.encode()).decode())
@@ -64,7 +78,7 @@ def verify_state(state: Optional[str], agent_id: str) -> Dict[str, Any]:
 
     received = payload.pop("sig", None)
     if not isinstance(received, str) or not hmac.compare_digest(
-        received, _signature(payload)
+        received, _signature(payload, caller)
     ):
         raise InvalidOAuthState("bad signature")
 

@@ -65,6 +65,8 @@ class MCPOAuthService:
         self.core_service_url = core_service_url.rstrip('/')
         self.user_token = user_token
         self.tenant_id = tenant_id
+        # Who started/completes the OAuth flow; set by the route dependency.
+        self.oauth_caller = None
         # The browser reaches core-service through the CRM, which supplies
         # X-Evo-Tenant-Id; the processor's internal calls must carry the same
         # header or the enterprise tenant middleware rejects them (403 forbidden,
@@ -766,7 +768,7 @@ class MCPOAuthService:
         # Generate PKCE challenge (RFC 7636)
         code_verifier, code_challenge = self._generate_pkce_challenge()
 
-        state = issue_state(agent_id)
+        state = issue_state(agent_id, getattr(self, "oauth_caller", None))
 
         # Store code_verifier in memory AND in storage for callback
         self._pkce_verifiers[state] = code_verifier
@@ -887,7 +889,7 @@ class MCPOAuthService:
         """
         try:
             try:
-                verify_state(state, agent_id)
+                verify_state(state, agent_id, getattr(self, "oauth_caller", None))
             except InvalidOAuthState as e:
                 logger.warning(f"[{self.provider_name}] Rejected OAuth callback for agent {agent_id}: {e}")
                 return {

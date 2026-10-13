@@ -137,7 +137,7 @@ class PayPalService(MCPOAuthService):
         """
         try:
             try:
-                verify_state(state, agent_id)
+                verify_state(state, agent_id, getattr(self, "oauth_caller", None))
             except InvalidOAuthState as e:
                 logger.warning(f"[paypal] Rejected OAuth callback for agent {agent_id}: {e}")
                 return {
@@ -375,7 +375,7 @@ class PayPalService(MCPOAuthService):
         # Generate PKCE challenge (RFC 7636) - fast operation
         code_verifier, code_challenge = self._generate_pkce_challenge()
 
-        state = issue_state(agent_id)
+        state = issue_state(agent_id, getattr(self, "oauth_caller", None))
 
         # Store code_verifier in memory (fast, always available)
         self._pkce_verifiers[state] = code_verifier

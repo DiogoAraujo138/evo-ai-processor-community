@@ -97,7 +97,7 @@ class GoogleCalendarService:
             redirect_uri=self.redirect_uri
         )
 
-        state = issue_state(agent_id)
+        state = issue_state(agent_id, getattr(self, "oauth_caller", None))
 
         # Generate authorization URL
         authorization_url, _ = flow.authorization_url(
@@ -129,7 +129,7 @@ class GoogleCalendarService:
             Dictionary with success status, email, and calendars
         """
         try:
-            verify_state(state, agent_id)
+            verify_state(state, agent_id, getattr(self, "oauth_caller", None))
 
             # Manual token exchange without scope validation
             # Google may return normalized scopes (e.g., "email" -> "userinfo.email")
