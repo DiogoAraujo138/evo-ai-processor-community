@@ -41,6 +41,10 @@ def test_a_lookalike_host_is_not_the_provider():
     assert not is_provider_mcp_url("notion", "https://mcp.notion.com/mcp?x=1")
 
 
+def test_the_provider_name_is_matched_case_insensitively():
+    assert trusted_mcp_url("Notion", FOREIGN, "x") == "x"
+
+
 def test_custom_servers_keep_their_url():
     assert trusted_mcp_url("my-custom-server", FOREIGN, "x") == FOREIGN
 
