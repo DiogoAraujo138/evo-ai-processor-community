@@ -63,7 +63,9 @@ def verify_state(state: Optional[str], agent_id: str) -> Dict[str, Any]:
         raise InvalidOAuthState("malformed state")
 
     received = payload.pop("sig", None)
-    if not isinstance(received, str) or not hmac.compare_digest(received, _signature(payload)):
+    if not isinstance(received, str) or not hmac.compare_digest(
+        received, _signature(payload)
+    ):
         raise InvalidOAuthState("bad signature")
 
     if payload.get("agent_id") != str(agent_id):
@@ -71,7 +73,11 @@ def verify_state(state: Optional[str], agent_id: str) -> Dict[str, Any]:
 
     issued_at = payload.get("issued_at")
     now = time.time()
-    if not isinstance(issued_at, int) or issued_at > now + CLOCK_SKEW_SECONDS or now - issued_at > STATE_TTL_SECONDS:
+    if (
+        not isinstance(issued_at, int)
+        or issued_at > now + CLOCK_SKEW_SECONDS
+        or now - issued_at > STATE_TTL_SECONDS
+    ):
         raise InvalidOAuthState("expired state")
 
     return payload
