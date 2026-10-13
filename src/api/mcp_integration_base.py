@@ -147,7 +147,6 @@ async def discover_tools_endpoint(
                 f"🔍 Stripe Discover Tools - Config loaded:\n"
                 f"  - Has access_token: {bool(access_token)}\n"
                 f"  - Token length: {len(access_token) if access_token else 0}\n"
-                f"  - Token preview: {access_token[:15] + '...' + access_token[-10:] if access_token and len(access_token) > 25 else (access_token[:20] if access_token else 'N/A')}\n"
                 f"  - Stored MCP URL: {stored_mcp_url}\n"
                 f"  - Config keys: {list(config.keys())}\n"
                 f"  - Has refresh_token: {bool(config.get('refresh_token'))}\n"
