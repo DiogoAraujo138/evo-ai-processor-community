@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from src.services.adk.tools.google_calendar import create_check_availability_tool
+from src.services.adk.tool_builder import ToolBuilder
 from src.services.adk.tools.google_calendar.base import GoogleCalendarClient
 
 CREDS = {
@@ -76,3 +77,44 @@ def test_slot_search_queries_in_the_agent_configured_timezone():
         )
 
     assert _query_window(service) == ("2026-10-15T08:00:00-04:00", "2026-10-15T12:00:00-04:00")
+
+
+def _built_availability_tool(agent_config):
+    tools = ToolBuilder().build_tools(agent_config, db=None, agent_id="a-1")
+    return next(t for t in tools if getattr(t, "__name__", "") == "check_calendar_availability")
+
+
+def _agent_config(calendar_settings, timezone=None):
+    config = {
+        "integrations": {
+            "google-calendar": {"connected": True, "settings": calendar_settings},
+            "google-calendar-credentials": CREDS,
+        }
+    }
+    if timezone:
+        config["timezone"] = timezone
+    return config
+
+
+def _slot_search_window(tool):
+    service = _google_service()
+    with patch.object(GoogleCalendarClient, "get_calendar_service", return_value=service):
+        asyncio.run(
+            tool(start_date="2026-10-15T08:00:00", end_date="2026-10-15T12:00:00", find_slots=True, slot_duration=60)
+        )
+    return _query_window(service)
+
+
+def test_built_tools_fall_back_to_the_agent_timezone():
+    # The calendar dialog never writes settings.timezone; the agent's own one has to reach the tools.
+    tool = _built_availability_tool(_agent_config({"minAdvanceTime": 0}, timezone="Europe/Lisbon"))
+
+    assert _slot_search_window(tool) == ("2026-10-15T08:00:00+01:00", "2026-10-15T12:00:00+01:00")
+
+
+def test_built_tools_keep_a_timezone_set_on_the_calendar():
+    tool = _built_availability_tool(
+        _agent_config({"minAdvanceTime": 0, "timezone": "America/Manaus"}, timezone="Europe/Lisbon")
+    )
+
+    assert _slot_search_window(tool) == ("2026-10-15T08:00:00-04:00", "2026-10-15T12:00:00-04:00")

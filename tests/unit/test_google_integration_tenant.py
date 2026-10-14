@@ -11,7 +11,7 @@ import pytest
 from starlette.requests import Request
 
 from src.api.google_calendar_routes import get_calendars, get_google_calendar_service
-from src.api.google_sheets_routes import get_google_sheets_service
+from src.api.google_sheets_routes import get_google_sheets_service, get_spreadsheets
 from src.services.google_calendar_service import GoogleCalendarService
 from src.services.google_sheets_service import GoogleSheetsService
 
@@ -73,6 +73,18 @@ def test_calendar_route_error_is_answered_not_raised():
 
     response = asyncio.run(
         get_calendars(agent_id="a-1", request=_request(), service=service, db=None, _permission=None, _={})
+    )
+
+    assert response.status_code == 500
+    assert json.loads(response.body)["success"] is False
+
+
+def test_sheets_route_error_is_answered_not_raised():
+    service = MagicMock()
+    service.get_spreadsheets = AsyncMock(side_effect=RuntimeError("core-service down"))
+
+    response = asyncio.run(
+        get_spreadsheets(agent_id="a-1", request=_request(), service=service, db=None, _permission=None, _={})
     )
 
     assert response.status_code == 500

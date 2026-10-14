@@ -281,6 +281,7 @@ async def complete_authorization(
 )
 async def get_spreadsheets(
     agent_id: str,
+    request: Request,
     service: GoogleSheetsService = Depends(get_google_sheets_service),
     db: Session = Depends(get_db),
     _permission: None = Depends(RequirePermission("integrations", "read")),
