@@ -154,7 +154,8 @@ async def get_google_sheets_service(
         client_secret=client_secret,
         redirect_uri=redirect_uri,
         core_service_url=core_service_url,
-        user_token=user_token
+        user_token=user_token,
+        tenant_id=cid
     )
 
 
