@@ -202,6 +202,12 @@ app.add_middleware(
     cleanup_interval=settings.RATE_LIMIT_CLEANUP_INTERVAL
 )
 
+# Chordata: multi-empresa (no-op sem MULTI_EMPRESA=on). Fica depois de todos os add_middleware
+# porque reordena a pilha; ver src/chordata_multi_empresa e o runbook no vault.
+from src.chordata_multi_empresa import instalar_se_ligado
+
+instalar_se_ligado(app)
+
 # Static files configuration
 static_dir = Path("static")
 if not static_dir.exists():

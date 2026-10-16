@@ -53,6 +53,12 @@ class EvoCrmClient:
         else:
             logger.warning("No API token available for CRM requests")
 
+        # Chordata multi-empresa: o CRM exige a empresa em chamadas de serviço (no-op sem multi-empresa).
+        from src.chordata_multi_empresa import CABECALHO, empresa_atual
+
+        if empresa_atual():
+            headers[CABECALHO] = empresa_atual()
+
         if additional_headers:
             headers.update(additional_headers)
 
