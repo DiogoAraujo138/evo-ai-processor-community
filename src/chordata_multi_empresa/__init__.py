@@ -6,5 +6,6 @@ Estado e riscos: vault/01_Arquitetura/Multi-empresa - Estado e Como Ligar.md
 
 from .contexto import CABECALHO, com_empresa, empresa_atual, ligado
 from .extensao import instalar_se_ligado
+from .limite import instalar_limite
 
-__all__ = ["CABECALHO", "com_empresa", "empresa_atual", "instalar_se_ligado", "ligado"]
+__all__ = ["CABECALHO", "com_empresa", "empresa_atual", "instalar_limite", "instalar_se_ligado", "ligado"]
