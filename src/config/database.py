@@ -27,6 +27,8 @@
 └──────────────────────────────────────────────────────────────────────────────┘
 """
 
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -43,8 +45,13 @@ POSTGRES_CONNECTION_STRING = settings.POSTGRES_CONNECTION_STRING
 # so a connection held across a slow operation is not silently dropped mid-query.
 # pre_ping only guards the checkout boundary; keepalives guard an already
 # checked-out connection.
+# Chordata: tamanho do pool configuravel. O padrao do SQLAlchemy (5 + 10, espera de 30 s) esgota com ~15 execucoes de
+# agente simultaneas (a conexao fica ocupada enquanto o modelo responde) e derruba a chamada de IA. Padroes = upstream.
 engine = create_engine(
     POSTGRES_CONNECTION_STRING,
+    pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
+    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "10")),
+    pool_timeout=float(os.getenv("DB_POOL_TIMEOUT", "30")),
     pool_pre_ping=True,
     pool_recycle=1800,
     connect_args={
