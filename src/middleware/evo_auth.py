@@ -97,6 +97,9 @@ class EvoAuthMiddleware(BaseHTTPMiddleware):
                                 f"EvoAuth: Successfully authenticated Agent Bot {validation_result.get('agent_name')} via X-API-Key for /sync/ route"
                             )
 
+                            # Chordata: libera a conexao do banco ANTES da execucao longa (a IA leva segundos); antes a sessao ficava
+                            # aberta durante a requisicao inteira e cada execucao de agente segurava uma conexao do pool.
+                            db.close()
                             return await call_next(request)
                     except AgentValidationError as e:
                         # EVO-2166: infra/DB error is transient -> 503 (retryable),
@@ -153,6 +156,9 @@ class EvoAuthMiddleware(BaseHTTPMiddleware):
                                 f"EvoAuth: Successfully authenticated Agent Bot {validation_result.get('agent_name')} via API key"
                             )
 
+                            # Chordata: libera a conexao do banco ANTES da execucao longa (a IA leva segundos); antes a sessao ficava
+                            # aberta durante a requisicao inteira e cada execucao de agente segurava uma conexao do pool.
+                            db.close()
                             return await call_next(request)
                     except AgentValidationError as e:
                         # EVO-2166: infra/DB error is transient -> 503 (retryable),
@@ -222,6 +228,9 @@ class EvoAuthMiddleware(BaseHTTPMiddleware):
                         f"EvoAuth: Successfully authenticated Agent Bot {validation_result.get('agent_name')}"
                     )
 
+                    # Chordata: libera a conexao do banco ANTES da execucao longa (a IA leva segundos); antes a sessao ficava
+                    # aberta durante a requisicao inteira e cada execucao de agente segurava uma conexao do pool.
+                    db.close()
                     return await call_next(request)
                     
                 finally:
